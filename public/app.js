@@ -6,6 +6,8 @@ let customStart = null;
 let customEnd = null;
 let charts = {};
 let modelsData = [];
+let tpsModelsList = [];
+let selectedTPSModels = [];
 let currentChartType = 'tokens';
 let currentHourlyType = 'messages';
 
@@ -544,63 +546,98 @@ async function loadWeeklyChart() {
   });
 }
 
+async function loadTPSModelsList() {
+  const models = await fetchAPI('/models-list');
+  const modelsWithStats = await fetchAPI('/stats/models?days=30');
+  
+  modelsWithStats.sort((a, b) => (b.outputTokens || 0) - (a.outputTokens || 0));
+  tpsModelsList = modelsWithStats.slice(0, 10).map(m => m.baseModel);
+  selectedTPSModels = tpsModelsList.slice(0, 5);
+  
+  const select = document.getElementById('tpsModelSelect');
+  select.innerHTML = '';
+  
+  for (const model of tpsModelsList) {
+    const option = document.createElement('option');
+    option.value = model;
+    option.textContent = model;
+    option.selected = selectedTPSModels.includes(model);
+    select.appendChild(option);
+  }
+}
+
 async function loadTPSChart() {
-  const data = await fetchAPI('/stats/models-tps?days=30');
+  const select = document.getElementById('tpsModelSelect');
+  selectedTPSModels = Array.from(select.selectedOptions).map(o => o.value);
+  
+  if (selectedTPSModels.length === 0) {
+    selectedTPSModels = tpsModelsList.slice(0, 5);
+    for (const option of select.options) {
+      option.selected = selectedTPSModels.includes(option.value);
+    }
+  }
+  
+  const data = await fetchAPI(`/stats/daily-tps-by-model?days=30&models=${selectedTPSModels.join(',')}`);
   
   if (charts.tps) charts.tps.destroy();
   
-  const topModels = data.slice(0, 10);
   const ctx = document.getElementById('tpsChart').getContext('2d');
   
+  const datasets = data.models.map((model, index) => ({
+    label: model.baseModel,
+    data: model.data,
+    borderColor: getColor(index),
+    backgroundColor: getColor(index) + '20',
+    fill: true,
+    tension: 0.3,
+    pointRadius: 2,
+    pointBackgroundColor: getColor(index),
+    pointBorderColor: '#0a0a0a',
+    pointBorderWidth: 1,
+    pointHoverRadius: 6,
+    pointHoverBackgroundColor: getColor(index),
+    pointHoverBorderColor: '#00ff88',
+    pointHoverBorderWidth: 2,
+    borderWidth: 2
+  }));
+  
   charts.tps = new Chart(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
-      labels: topModels.map(m => m.baseModel),
-      datasets: [
-        {
-          label: 'Output TPS',
-          data: topModels.map(m => m.outputTPS),
-          backgroundColor: getColor(0),
-          borderRadius: 3,
-          barPercentage: 0.7
-        },
-        {
-          label: 'Input TPS',
-          data: topModels.map(m => m.inputTPS),
-          backgroundColor: getColor(2),
-          borderRadius: 3,
-          barPercentage: 0.7
-        }
-      ]
+      labels: data.dates,
+      datasets: datasets
     },
     options: {
       ...chartDefaults,
-      indexAxis: 'y',
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
       plugins: {
         ...chartDefaults.plugins,
         tooltip: {
           ...tooltipDefaults,
+          mode: 'index',
+          intersect: false,
           callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.raw.toFixed(2)} tok/s`
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.raw?.toFixed(2) || '-'} tok/s`
           }
         }
       },
       scales: {
         x: {
           ...chartDefaults.scales.x,
-          ticks: {
-            ...chartDefaults.scales.x.ticks,
-            callback: v => v.toFixed(1)
-          }
+          ticks: { ...chartDefaults.scales.x.ticks, maxTicksLimit: 10 }
         },
         y: {
           ...chartDefaults.scales.y,
           ticks: {
             ...chartDefaults.scales.y.ticks,
-            callback: v => v
+            callback: v => v.toFixed(1) + ' tok/s'
           }
         }
-      }
+      },
+      spanGaps: true
     }
   });
 }
@@ -679,6 +716,7 @@ async function loadAll() {
   await loadDailyChart(currentChartType === 'cost');
   await loadHourlyChart();
   await loadWeeklyChart();
+  await loadTPSModelsList();
   await loadTPSChart();
 }
 
@@ -754,6 +792,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('#mainTimeFilter .btn[data-range]').forEach(b => b.classList.remove('active'));
       await loadAll();
     }
+  });
+  
+  document.getElementById('tpsModelSelect').addEventListener('change', async function() {
+    await loadTPSChart();
   });
   
   const today = new Date().toISOString().split('T')[0];

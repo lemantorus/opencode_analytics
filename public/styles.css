@@ -711,3 +711,30 @@ tbody tr:hover {
     flex: 1;
   }
 }
+
+#tpsModelSelect {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  min-width: 200px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+#tpsModelSelect:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#tpsModelSelect option {
+  padding: 0.25rem;
+}
+
+#tpsModelSelect option:checked {
+  background: var(--accent);
+  color: var(--bg-primary);
+}

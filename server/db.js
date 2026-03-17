@@ -1,8 +1,22 @@
 const { execSync } = require('child_process');
 const path = require('path');
 
-const DB_PATH = process.env.OPENCODE_DB_PATH || 
-  path.join(process.env.HOME, '.local/share/opencode/opencode.db');
+function getDbPath() {
+  if (process.env.OPENCODE_DB_PATH) {
+    return process.env.OPENCODE_DB_PATH;
+  }
+  
+  const home = process.env.HOME || process.env.USERPROFILE;
+  
+  if (!home) {
+    throw new Error('Could not determine home directory. Set OPENCODE_DB_PATH environment variable.');
+  }
+  
+  const dataDir = path.join(home, '.local', 'share', 'opencode');
+  return path.join(dataDir, 'opencode.db');
+}
+
+const DB_PATH = getDbPath();
 
 const cache = new Map();
 const CACHE_TTL = 30000;
@@ -313,6 +327,89 @@ function getModelsStatsByDays(days) {
   }));
 }
 
+function getDailyTPSByModel(days = 30, modelFilter = null) {
+  const startTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+  
+  const rows = query(`
+    SELECT 
+      date(time_created / 1000, 'unixepoch') as date,
+      json_extract(data, '$.modelID') as modelId,
+      json_extract(data, '$.tokens.output') as outputTokens,
+      json_extract(data, '$.time.created') as timeCreated,
+      json_extract(data, '$.time.completed') as timeCompleted
+    FROM message
+    WHERE data LIKE '%"tokens":%' 
+      AND data LIKE '%"time":%'
+      AND time_created >= ${startTime}
+  `);
+
+  const modelDailyStats = {};
+
+  for (const row of rows) {
+    if (!row.modelId) continue;
+    
+    const timeCreated = row.timeCreated || row.time_created;
+    const timeCompleted = row.timeCompleted;
+    const durationSeconds = (timeCompleted && timeCreated && timeCompleted > timeCreated) 
+      ? (timeCompleted - timeCreated) / 1000 
+      : 0;
+    
+    if (durationSeconds <= 0) continue;
+    
+    const tps = (row.outputTokens || 0) / durationSeconds;
+    if (!isFinite(tps)) continue;
+    
+    const modelKey = normalizeModelName(row.modelId);
+    const dateKey = row.date;
+    
+    if (!modelDailyStats[modelKey]) {
+      modelDailyStats[modelKey] = {};
+    }
+    if (!modelDailyStats[modelKey][dateKey]) {
+      modelDailyStats[modelKey][dateKey] = { tpsSum: 0, count: 0 };
+    }
+    
+    modelDailyStats[modelKey][dateKey].tpsSum += tps;
+    modelDailyStats[modelKey][dateKey].count += 1;
+  }
+
+  const result = [];
+  const allDates = new Set();
+  for (const model of Object.values(modelDailyStats)) {
+    for (const date of Object.keys(model)) {
+      allDates.add(date);
+    }
+  }
+  const sortedDates = Array.from(allDates).sort();
+
+  for (const [model, dates] of Object.entries(modelDailyStats)) {
+    if (modelFilter && !modelFilter.includes(model)) continue;
+    
+    const data = sortedDates.map(date => {
+      const dayStats = dates[date];
+      return dayStats && dayStats.count > 0 
+        ? dayStats.tpsSum / dayStats.count 
+        : null;
+    });
+    
+    result.push({
+      baseModel: model,
+      data: data
+    });
+  }
+
+  result.sort((a, b) => {
+    const totalA = a.data.reduce((s, v) => s + (v || 0), 0);
+    const totalB = b.data.reduce((s, v) => s + (v || 0), 0);
+    return totalB - totalA;
+  });
+
+  return {
+    dates: sortedDates,
+    models: result
+  };
+}
+
 function getModelsTPSStats(days = 30) {
   const startTime = Date.now() - (days * 24 * 60 * 60 * 1000);
   
@@ -403,6 +500,19 @@ function getHourlyTPSStats() {
   return result;
 }
 
+function getModelsList() {
+  const rows = query(`
+    SELECT DISTINCT json_extract(data, '$.modelID') as modelId
+    FROM message
+    WHERE data LIKE '%"modelID"%'
+  `);
+  
+  return rows
+    .map(row => normalizeModelName(row.modelId))
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort();
+}
+
 module.exports = {
   normalizeModelName,
   getShortModelName,
@@ -416,5 +526,7 @@ module.exports = {
   getMonthlyStats,
   getHourlyStats,
   getModelsTPSStats,
-  getHourlyTPSStats
+  getHourlyTPSStats,
+  getDailyTPSByModel,
+  getModelsList
 };

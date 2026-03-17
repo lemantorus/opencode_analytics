@@ -1,12 +1,38 @@
 {
   "name": "opencode-analytics",
   "version": "1.0.0",
-  "description": "OpenCode usage analytics dashboard",
+  "description": "Analytics dashboard for OpenCode - visualize your AI coding usage",
+  "main": "server/index.js",
+  "bin": {
+    "opencode-analytics": "./bin/opencode-analytics.js"
+  },
+  "files": [
+    "bin",
+    "server",
+    "public"
+  ],
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node --watch server/index.js"
+    "start": "node bin/opencode-analytics.js"
+  },
+  "keywords": [
+    "opencode",
+    "analytics",
+    "ai",
+    "llm",
+    "usage",
+    "dashboard"
+  ],
+  "license": "MIT",
+  "author": "Andrew",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anomalyco/opencode"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
-    "express": "^4.22.1"
+    "express": "^4.22.1",
+    "open": "^10.1.0"
   }
 }

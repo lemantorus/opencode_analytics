@@ -377,6 +377,19 @@ app.get('/api/stats/models-tps', (req, res) => {
   res.json(stats);
 });
 
+app.get('/api/stats/daily-tps-by-model', (req, res) => {
+  const days = parseInt(req.query.days) || 30;
+  const modelsParam = req.query.models;
+  const modelFilter = modelsParam ? modelsParam.split(',').filter(Boolean) : null;
+  const data = db.getDailyTPSByModel(days, modelFilter);
+  res.json(data);
+});
+
+app.get('/api/models-list', (req, res) => {
+  const models = db.getModelsList();
+  res.json(models);
+});
+
 app.get('/api/pricing', (req, res) => {
   res.json(pricing);
 });

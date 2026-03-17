@@ -223,7 +223,7 @@ const Aggregator = (function() {
       if (group && group.messages.length > 0) {
         let totalOutput = 0;
         for (const msg of group.messages) {
-          totalOutput += msg.out || 0;
+          totalOutput += (msg.out || 0) + (msg.rs || 0);
         }
         const duration = (group.maxTs - group.minTs) / 1000;
         const tps = duration > 0 ? totalOutput / duration : 0;
@@ -263,18 +263,19 @@ const Aggregator = (function() {
       
       if (duration <= 0) continue;
       
-      const tps = (msg.out || 0) / duration;
+      const tps = ((msg.out || 0) + (msg.rs || 0)) / duration;
       if (!isFinite(tps)) continue;
       
       if (!modelData[base]) modelData[base] = {};
       if (!modelData[base][date]) {
-        modelData[base][date] = { tpsSum: 0, count: 0, inputTokens: 0, outputTokens: 0 };
+        modelData[base][date] = { tpsSum: 0, count: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0 };
       }
       
       modelData[base][date].tpsSum += tps;
       modelData[base][date].count += 1;
       modelData[base][date].inputTokens += msg.in || 0;
       modelData[base][date].outputTokens += msg.out || 0;
+      modelData[base][date].reasoningTokens += msg.rs || 0;
     }
     
     const sortedDates = Array.from(allDates).sort();
@@ -286,7 +287,7 @@ const Aggregator = (function() {
       const data = sortedDates.map(date => {
         const d = dates[date];
         return d && d.count > 0 
-          ? { tps: d.tpsSum / d.count, inputTokens: d.inputTokens, outputTokens: d.outputTokens }
+          ? { tps: d.tpsSum / d.count, inputTokens: d.inputTokens, outputTokens: d.outputTokens, reasoningTokens: d.reasoningTokens }
           : null;
       });
       
@@ -327,7 +328,7 @@ const Aggregator = (function() {
       const md = modelData[base];
       md.messageCount += 1;
       md.inputTokens += msg.in || 0;
-      md.outputTokens += msg.out || 0;
+      md.outputTokens += (msg.out || 0) + (msg.rs || 0);
       if (msg.ts < md.minTs) md.minTs = msg.ts;
       if (msg.ts > md.maxTs) md.maxTs = msg.ts;
     }

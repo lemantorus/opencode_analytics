@@ -767,10 +767,11 @@ function renderTPSChart() {
               const tps = extra?.tps?.toFixed(2) || '-';
               const input = extra?.inputTokens ? formatNumber(extra.inputTokens) : '0';
               const output = extra?.outputTokens ? formatNumber(extra.outputTokens) : '0';
+              const reasoning = extra?.reasoningTokens ? formatNumber(extra.reasoningTokens) : '0';
               return [
                 ctx.dataset.label,
                 `  ├─ TPS: ${tps} tok/s`,
-                `  └─ In: ${input} | Out: ${output}`
+                `  └─ In: ${input} | Out: ${output} | Think: ${reasoning}`
               ];
             }
           }

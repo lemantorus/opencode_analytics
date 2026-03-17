@@ -1,0 +1,12 @@
+{
+  "name": "opencode-analytics",
+  "version": "1.0.0",
+  "description": "OpenCode usage analytics dashboard",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.22.1"
+  }
+}

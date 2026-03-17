@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCode Analytics</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-left">
+        <h1>OpenCode Analytics</h1>
+      </div>
+      <div class="header-controls">
+        <label class="checkbox-wrapper">
+          <input type="checkbox" id="checkAsFree" checked>
+          <span>Check as Free</span>
+        </label>
+        <button id="refreshPricingBtn" class="btn btn-outline" title="Reset all custom prices to server defaults. Your changes will be lost.">Actualize prices</button>
+        <button id="editPricingBtn" class="btn btn-outline">Edit Pricing</button>
+      </div>
+    </header>
+
+    <section class="overview-cards">
+      <div class="card">
+        <div class="card-icon">💬</div>
+        <div class="card-content">
+          <div class="card-label">Messages</div>
+          <div class="card-value" id="totalMessages">-</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📥</div>
+        <div class="card-content">
+          <div class="card-label">Input Tokens</div>
+          <div class="card-value" id="totalInput">-</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📤</div>
+        <div class="card-content">
+          <div class="card-label">Output Tokens</div>
+          <div class="card-value" id="totalOutput">-</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-content">
+          <div class="card-label">Cache Read</div>
+          <div class="card-value" id="totalCacheRead">-</div>
+        </div>
+      </div>
+      <div class="card highlight">
+        <div class="card-icon">💰</div>
+        <div class="card-content">
+          <div class="card-label">Estimated Cost</div>
+          <div class="card-value" id="totalCost">-</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="time-filter-row">
+      <div class="time-filter" id="mainTimeFilter">
+        <button class="btn btn-sm" data-range="7">7D</button>
+        <button class="btn btn-sm active" data-range="30">30D</button>
+        <button class="btn btn-sm" data-range="90">90D</button>
+        <button class="btn btn-sm" data-range="365">1Y</button>
+        <button class="btn btn-sm" data-range="all">All</button>
+      </div>
+      <div class="date-range-picker">
+        <label>From:</label>
+        <input type="date" id="startDate">
+        <label>To:</label>
+        <input type="date" id="endDate">
+        <button class="btn btn-sm btn-primary" id="applyDateRange">Apply</button>
+      </div>
+    </section>
+
+    <section class="charts-grid">
+      <div class="chart-container">
+        <h3>Usage by Model</h3>
+        <div class="chart-wrapper"><canvas id="modelsChart"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <h3>Cost Distribution</h3>
+        <div class="chart-wrapper"><canvas id="costChart"></canvas></div>
+      </div>
+      <div class="chart-container full-width">
+        <div class="chart-header">
+          <h3>Daily Usage Trend</h3>
+          <div class="chart-type-toggle">
+            <button class="btn btn-sm active" data-chart="tokens">Tokens</button>
+            <button class="btn btn-sm" data-chart="cost">Cost</button>
+          </div>
+        </div>
+        <div class="chart-wrapper large"><canvas id="dailyChart"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3>Hourly Activity</h3>
+          <div class="chart-type-toggle">
+            <button class="btn btn-sm active" data-hourly="messages">Messages</button>
+            <button class="btn btn-sm" data-hourly="tps">TPS</button>
+          </div>
+        </div>
+        <div class="chart-wrapper"><canvas id="hourlyChart"></canvas></div>
+      </div>
+      <div class="chart-container">
+        <h3>Weekly Cost</h3>
+        <div class="chart-wrapper"><canvas id="weeklyChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="charts-grid">
+      <div class="chart-container full-width">
+        <h3>Output TPS by Model (last 30 days)</h3>
+        <div class="chart-wrapper large"><canvas id="tpsChart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="models-table">
+    </section>
+
+    <section class="models-table">
+      <h3>Models Breakdown</h3>
+      <div class="table-wrapper">
+        <table id="modelsTable">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Messages</th>
+              <th>Input</th>
+              <th>Output</th>
+              <th>Cache Read</th>
+              <th>Cache Write</th>
+              <th>Cost</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="pricingModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit Pricing</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-info">Prices are per 1M tokens. Models sorted by usage. Changes override OpenRouter defaults.</p>
+        <div id="pricingList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <span>Loading analytics...</span>
+  </div>
+
+  <script src="app.js?v=8"></script>
+</body>
+</html>

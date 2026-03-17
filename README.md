@@ -63,7 +63,7 @@ This uses the actual response start and completion timestamps from each message,
 ### From npm (recommended)
 
 ```bash
-npm install -g opencode-analytics
+npm install -g @lemantorus/opencode-analytics
 ```
 
 ### From source

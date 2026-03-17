@@ -1,5 +1,5 @@
 {
-  "name": "opencode-analytics",
+  "name": "@lemantorus/opencode-analytics",
   "version": "1.0.0",
   "description": "Analytics dashboard for OpenCode - visualize your AI coding usage (unofficial)",
   "main": "server/index.js",

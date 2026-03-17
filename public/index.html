@@ -18,6 +18,18 @@
           <input type="checkbox" id="checkAsFree" checked>
           <span>Check as Free</span>
         </label>
+        <div class="refresh-controls">
+          <button id="refreshBtn" class="btn btn-outline" title="Refresh data">Refresh</button>
+          <select id="autoRefreshSelect" class="btn btn-outline" style="padding-right: 1.5rem;">
+            <option value="0">Auto: Off</option>
+            <option value="30">30s</option>
+            <option value="60">1m</option>
+            <option value="120">2m</option>
+            <option value="300">5m</option>
+          </select>
+          <button id="autoRefreshBtn" class="btn btn-outline" title="Start auto-refresh">Start Auto</button>
+          <span id="autoRefreshIndicator" style="display:none; color: #00ff88; font-size: 0.75em; margin-left: 0.25rem;"></span>
+        </div>
         <button id="refreshPricingBtn" class="btn btn-outline" title="Reset all custom prices to server defaults. Your changes will be lost.">Actualize prices</button>
         <button id="editPricingBtn" class="btn btn-outline">Edit Pricing</button>
       </div>
@@ -171,6 +183,7 @@
     <span>Loading analytics...</span>
   </div>
 
-  <script src="app.js?v=10"></script>
+  <script src="aggregator.js?v=1"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

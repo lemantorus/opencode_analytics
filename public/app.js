@@ -1,15 +1,23 @@
 const API_BASE = '/api';
+
+let rawData = null;
+let rawMessages = [];
+let pricing = {};
+
 let checkAsFree = true;
 let currentRange = 30;
 let useCustomRange = false;
 let customStart = null;
 let customEnd = null;
 let charts = {};
-let modelsData = [];
+
 let tpsModelsList = [];
 let selectedTPSModels = [];
 let currentChartType = 'tokens';
 let currentHourlyType = 'messages';
+
+let autoRefreshInterval = null;
+let autoRefreshSeconds = 0;
 
 function formatNumber(num) {
   if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
@@ -112,29 +120,46 @@ const chartDefaults = {
   }
 };
 
-async function fetchAPI(endpoint) {
-  const url = `${API_BASE}${endpoint}${endpoint.includes('?') ? '&' : '?'}checkAsFree=${checkAsFree}`;
-  const res = await fetch(url);
+async function fetchRawData() {
+  const res = await fetch(`${API_BASE}/stats/raw`);
   if (!res.ok) throw new Error(`API Error: ${res.status}`);
   return res.json();
 }
 
-async function loadOverview() {
-  const days = useCustomRange ? null : (currentRange === 'all' ? null : currentRange);
-  const queryParam = days ? `?days=${days}` : '';
-  const data = await fetchAPI(`/stats/overview${queryParam}`);
-  
-  document.getElementById('totalMessages').textContent = formatNumber(data.messageCount);
-  document.getElementById('totalInput').textContent = formatNumber(data.totalInput);
-  document.getElementById('totalOutput').textContent = formatNumber(data.totalOutput);
-  document.getElementById('totalCacheRead').textContent = formatNumber(data.totalCacheRead);
-  document.getElementById('totalCost').textContent = formatCurrency(data.totalCost);
+async function loadRawData() {
+  rawData = await fetchRawData();
+  rawMessages = rawData.messages || [];
+  pricing = rawData.pricing || {};
 }
 
-async function loadModelsChart() {
-  const days = useCustomRange ? 365 : (currentRange === 'all' ? 365 : currentRange);
-  modelsData = await fetchAPI(`/stats/models?days=${days}`);
+function getFilteredMessages() {
+  if (useCustomRange && customStart && customEnd) {
+    const startTs = new Date(customStart).getTime();
+    const endTs = new Date(customEnd).getTime() + (24 * 60 * 60 * 1000 - 1);
+    return Aggregator.filterByRange(rawMessages, startTs, endTs);
+  }
   
+  if (currentRange === 'all') {
+    return rawMessages;
+  }
+  
+  return Aggregator.filterByDays(rawMessages, currentRange);
+}
+
+function renderOverview() {
+  const messages = getFilteredMessages();
+  const overview = Aggregator.getOverview(messages, pricing, checkAsFree);
+  
+  document.getElementById('totalMessages').textContent = formatNumber(overview.messageCount);
+  document.getElementById('totalInput').textContent = formatNumber(overview.totalInput);
+  document.getElementById('totalOutput').textContent = formatNumber(overview.totalOutput);
+  document.getElementById('totalCacheRead').textContent = formatNumber(overview.totalCacheRead);
+  document.getElementById('totalCost').textContent = formatCurrency(overview.totalCost);
+}
+
+function renderModelsChart() {
+  const messages = getFilteredMessages();
+  const modelsData = Aggregator.aggregateByModel(messages, pricing, checkAsFree);
   const topModels = modelsData.slice(0, 8);
   const labels = topModels.map(m => m.baseModel);
   
@@ -252,18 +277,32 @@ async function loadModelsChart() {
     }
   });
   
-  updateModelsTable();
+  renderModelsTable(modelsData);
 }
 
-async function loadDailyChart(showCost = false) {
-  let data;
+function renderModelsTable(modelsData) {
+  const tbody = document.querySelector('#modelsTable tbody');
+  tbody.innerHTML = '';
   
-  if (useCustomRange && customStart && customEnd) {
-    data = await fetchAPI(`/stats/daily/range?start=${customStart}&end=${customEnd}`);
-  } else {
-    const days = currentRange === 'all' ? 365 : currentRange;
-    data = await fetchAPI(`/stats/daily?days=${days}`);
-  }
+  modelsData.forEach(m => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><strong>${m.baseModel}</strong></td>
+      <td>${formatNumber(m.messageCount)}</td>
+      <td>${formatNumber(m.inputTokens)}</td>
+      <td>${formatNumber(m.outputTokens)}</td>
+      <td>${formatNumber(m.cacheRead)}</td>
+      <td>${formatNumber(m.cacheWrite)}</td>
+      <td>${formatCurrency(m.cost)}</td>
+      <td><span class="badge ${m.isFree ? 'badge-free' : 'badge-paid'}">${m.isFree ? 'FREE' : 'PAID'}</span></td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function renderDailyChart(showCost = false) {
+  const messages = getFilteredMessages();
+  const data = Aggregator.aggregateByPeriod(messages, 'day', pricing, checkAsFree);
   
   if (charts.daily) charts.daily.destroy();
   
@@ -422,12 +461,12 @@ async function loadDailyChart(showCost = false) {
   }
 }
 
-async function loadHourlyChart(mode = 'messages') {
+function renderHourlyChart(mode = 'messages') {
   let data;
   if (mode === 'tps') {
-    data = await fetchAPI('/stats/hourly-tps');
+    data = Aggregator.getHourlyTPS(rawMessages);
   } else {
-    data = await fetchAPI('/stats/hourly');
+    data = Aggregator.aggregateByHour(rawMessages);
   }
   
   if (charts.hourly) charts.hourly.destroy();
@@ -504,8 +543,9 @@ async function loadHourlyChart(mode = 'messages') {
   }
 }
 
-async function loadWeeklyChart() {
-  const data = await fetchAPI('/stats/weekly?weeks=12');
+function renderWeeklyChart() {
+  const messages = getFilteredMessages();
+  const data = Aggregator.aggregateByPeriod(messages, 'week', pricing, checkAsFree);
   
   if (charts.weekly) charts.weekly.destroy();
   
@@ -513,7 +553,7 @@ async function loadWeeklyChart() {
   charts.weekly = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: data.map(d => (d.week || d.time || '').split('-')[1] || d.week || d.time),
+      labels: data.map(d => (d.time || '').split('-')[1] || d.time),
       datasets: [{
         label: 'Cost',
         data: data.map(d => d.cost),
@@ -548,12 +588,16 @@ async function loadWeeklyChart() {
   });
 }
 
-async function loadTPSModelsList() {
-  const modelsWithStats = await fetchAPI('/stats/models?days=30');
+function updateTPSModelsList() {
+  const messages = Aggregator.filterByDays(rawMessages, 30);
+  const modelsData = Aggregator.aggregateByModel(messages, pricing, checkAsFree);
   
-  modelsWithStats.sort((a, b) => (b.outputTokens || 0) - (a.outputTokens || 0));
-  tpsModelsList = modelsWithStats.slice(0, 10).map(m => m.baseModel);
-  selectedTPSModels = tpsModelsList.slice(0, 5);
+  modelsData.sort((a, b) => (b.outputTokens || 0) - (a.outputTokens || 0));
+  tpsModelsList = modelsData.slice(0, 10).map(m => m.baseModel);
+  
+  if (selectedTPSModels.length === 0) {
+    selectedTPSModels = tpsModelsList.slice(0, 5);
+  }
   
   const dropdown = document.getElementById('tpsModelDropdown');
   const optionsContainer = dropdown.querySelector('.dropdown-options');
@@ -616,30 +660,30 @@ function initTPSDropdown() {
     e.stopPropagation();
   });
   
-  setTimeout(() => {
-    const applyBtn = document.createElement('button');
-    applyBtn.type = 'button';
-    applyBtn.className = 'btn btn-sm btn-primary';
-    applyBtn.textContent = 'Apply';
-    applyBtn.style.marginTop = '0.5rem';
-    applyBtn.style.width = '100%';
-    applyBtn.addEventListener('click', async () => {
-      dropdown.classList.remove('open');
-      const checked = dropdown.querySelectorAll('input[type="checkbox"]:checked');
-      selectedTPSModels = Array.from(checked).map(c => c.value);
-      await loadTPSChart();
-    });
-    dropdown.querySelector('.dropdown-menu').appendChild(applyBtn);
-  }, 0);
+  const existingApplyBtn = dropdown.querySelector('.dropdown-menu .btn-primary');
+  if (existingApplyBtn) existingApplyBtn.remove();
+  
+  const applyBtn = document.createElement('button');
+  applyBtn.type = 'button';
+  applyBtn.className = 'btn btn-sm btn-primary';
+  applyBtn.textContent = 'Apply';
+  applyBtn.style.marginTop = '0.5rem';
+  applyBtn.style.width = '100%';
+  applyBtn.addEventListener('click', () => {
+    dropdown.classList.remove('open');
+    const checked = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+    selectedTPSModels = Array.from(checked).map(c => c.value);
+    renderTPSChart();
+  });
+  dropdown.querySelector('.dropdown-menu').appendChild(applyBtn);
 }
 
-async function loadTPSChart() {
+function renderTPSChart() {
   if (selectedTPSModels.length === 0) {
     selectedTPSModels = tpsModelsList.slice(0, 5);
   }
   
-  const modelsParam = selectedTPSModels.join(',');
-  const data = await fetchAPI('/stats/daily-tps-by-model?days=30&models=' + modelsParam);
+  const data = Aggregator.getDailyTPSByModel(rawMessages, 30, selectedTPSModels, pricing);
   
   if (charts.tps) charts.tps.destroy();
   
@@ -720,24 +764,75 @@ async function loadTPSChart() {
   });
 }
 
-function updateModelsTable() {
-  const tbody = document.querySelector('#modelsTable tbody');
-  tbody.innerHTML = '';
+function renderAll() {
+  renderOverview();
+  renderModelsChart();
+  renderDailyChart(currentChartType === 'cost');
+  renderHourlyChart(currentHourlyType);
+  renderWeeklyChart();
+  updateTPSModelsList();
+  renderTPSChart();
+}
+
+function setAutoRefresh(seconds) {
+  autoRefreshSeconds = seconds;
   
-  modelsData.forEach(m => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td><strong>${m.baseModel}</strong></td>
-      <td>${formatNumber(m.messageCount)}</td>
-      <td>${formatNumber(m.inputTokens)}</td>
-      <td>${formatNumber(m.outputTokens)}</td>
-      <td>${formatNumber(m.cacheRead)}</td>
-      <td>${formatNumber(m.cacheWrite)}</td>
-      <td>${formatCurrency(m.cost)}</td>
-      <td><span class="badge ${m.isFree ? 'badge-free' : 'badge-paid'}">${m.isFree ? 'FREE' : 'PAID'}</span></td>
-    `;
-    tbody.appendChild(row);
-  });
+  if (autoRefreshInterval) {
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+  }
+  
+  const indicator = document.getElementById('autoRefreshIndicator');
+  const btn = document.getElementById('autoRefreshBtn');
+  
+  if (seconds <= 0) {
+    if (indicator) indicator.style.display = 'none';
+    if (btn) btn.classList.remove('active');
+    return;
+  }
+  
+  if (indicator) indicator.style.display = 'inline';
+  if (btn) btn.classList.add('active');
+  
+  autoRefreshInterval = setInterval(async () => {
+    try {
+      await loadRawData();
+      renderAll();
+      updateAutoRefreshIndicator();
+    } catch (err) {
+      console.error('Auto-refresh failed:', err);
+    }
+  }, seconds * 1000);
+  
+  updateAutoRefreshIndicator();
+}
+
+function updateAutoRefreshIndicator() {
+  const indicator = document.getElementById('autoRefreshIndicator');
+  if (!indicator || autoRefreshSeconds <= 0) return;
+  
+  const nextRefresh = new Date(Date.now() + autoRefreshSeconds * 1000);
+  indicator.textContent = `Auto: ${autoRefreshSeconds}s`;
+}
+
+async function manualRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) {
+    btn.textContent = '...';
+    btn.disabled = true;
+  }
+  
+  try {
+    await loadRawData();
+    renderAll();
+  } catch (err) {
+    console.error('Refresh failed:', err);
+  } finally {
+    if (btn) {
+      btn.textContent = 'Refresh';
+      btn.disabled = false;
+    }
+  }
 }
 
 async function loadPricingModal() {
@@ -783,24 +878,17 @@ async function loadPricingModal() {
       
       btn.textContent = 'Saved';
       setTimeout(() => btn.textContent = 'Save', 1200);
-      await loadAll();
+      
+      await loadRawData();
+      renderAll();
     });
   });
 }
 
-async function loadAll() {
-  await loadOverview();
-  await loadModelsChart();
-  await loadDailyChart(currentChartType === 'cost');
-  await loadHourlyChart();
-  await loadWeeklyChart();
-  await loadTPSModelsList();
-  await loadTPSChart();
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   try {
-    await loadAll();
+    await loadRawData();
+    renderAll();
     initTPSDropdown();
     document.getElementById('loading').classList.add('hidden');
   } catch (err) {
@@ -808,9 +896,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.loading span').textContent = 'Failed to load data. Is the server running?';
   }
   
-  document.getElementById('checkAsFree').addEventListener('change', async function() {
+  document.getElementById('checkAsFree').addEventListener('change', function() {
     checkAsFree = this.checked;
-    await loadAll();
+    renderAll();
+  });
+  
+  document.getElementById('refreshBtn').addEventListener('click', manualRefresh);
+  
+  document.getElementById('autoRefreshBtn').addEventListener('click', function() {
+    const select = document.getElementById('autoRefreshSelect');
+    const seconds = parseInt(select.value) || 0;
+    setAutoRefresh(seconds);
+  });
+  
+  document.getElementById('autoRefreshSelect').addEventListener('change', function() {
+    if (autoRefreshSeconds > 0) {
+      setAutoRefresh(parseInt(this.value) || 0);
+    }
   });
   
   document.getElementById('refreshPricingBtn').addEventListener('click', async function() {
@@ -818,7 +920,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await fetch(`${API_BASE}/pricing/reset`, { method: 'POST' });
     this.textContent = 'Done';
     setTimeout(() => this.textContent = 'Actualize prices', 1500);
-    await loadAll();
+    await loadRawData();
+    renderAll();
   });
   
   document.getElementById('editPricingBtn').addEventListener('click', () => {
@@ -837,30 +940,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   
   document.querySelectorAll('#mainTimeFilter .btn[data-range]').forEach(btn => {
-    btn.addEventListener('click', async function() {
+    btn.addEventListener('click', function() {
       document.querySelectorAll('#mainTimeFilter .btn[data-range]').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       currentRange = this.dataset.range === 'all' ? 'all' : parseInt(this.dataset.range);
       useCustomRange = false;
-      await loadAll();
+      renderAll();
     });
   });
   
   document.querySelectorAll('.chart-type-toggle .btn').forEach(btn => {
-    btn.addEventListener('click', async function() {
+    btn.addEventListener('click', function() {
       document.querySelectorAll('.chart-type-toggle .btn').forEach(b => b.classList.remove('active'));
       this.classList.add('active');
       
       if (this.dataset.chart) {
         currentChartType = this.dataset.chart;
-        await loadDailyChart(currentChartType === 'cost');
+        renderDailyChart(currentChartType === 'cost');
       } else if (this.dataset.hourly) {
-        await loadHourlyChart(this.dataset.hourly);
+        currentHourlyType = this.dataset.hourly;
+        renderHourlyChart(currentHourlyType);
       }
     });
   });
   
-  document.getElementById('applyDateRange').addEventListener('click', async function() {
+  document.getElementById('applyDateRange').addEventListener('click', function() {
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
     
@@ -869,7 +973,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       customEnd = end;
       useCustomRange = true;
       document.querySelectorAll('#mainTimeFilter .btn[data-range]').forEach(b => b.classList.remove('active'));
-      await loadAll();
+      renderAll();
     }
   });
   

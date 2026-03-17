@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const path = require('path');
 const fs = require('fs');
 const db = require('./db');
@@ -277,6 +278,7 @@ function aggregateByTimeFrame(stats, timeKey, checkAsFree = true) {
 }
 
 const app = express();
+app.use(compression());
 app.use(express.json());
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
@@ -481,6 +483,49 @@ app.delete('/api/pricing/:model', (req, res) => {
   } else {
     res.status(404).json({ error: 'Override not found' });
   }
+});
+
+app.get('/api/stats/raw', (req, res) => {
+  const messages = db.getRawMessages();
+  const modelPrices = {};
+  
+  for (const [name, p] of Object.entries(pricing.models || {})) {
+    modelPrices[name] = {
+      input: p.input || 0,
+      output: p.output || 0,
+      cacheRead: p.cacheRead || p.input || 0,
+      isFree: p.isFree || false
+    };
+  }
+  
+  for (const [name, p] of Object.entries(userPrices.prices || {})) {
+    modelPrices[name] = {
+      input: p.input || 0,
+      output: p.output || 0,
+      cacheRead: p.cacheRead || 0,
+      isFree: false
+    };
+  }
+  
+  let firstMessage = null;
+  let lastMessage = null;
+  for (const msg of messages) {
+    if (msg.ts) {
+      if (!firstMessage || msg.ts < firstMessage) firstMessage = msg.ts;
+      if (!lastMessage || msg.ts > lastMessage) lastMessage = msg.ts;
+    }
+  }
+  
+  res.json({
+    messages,
+    pricing: modelPrices,
+    meta: {
+      firstMessage,
+      lastMessage,
+      count: messages.length,
+      lastUpdated: pricing.lastUpdated
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3456;

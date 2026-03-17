@@ -522,6 +522,34 @@ function getModelsList() {
     .sort();
 }
 
+function getRawMessages() {
+  const rows = query(`
+    SELECT 
+      time_created as ts,
+      json_extract(data, '$.modelID') as modelId,
+      json_extract(data, '$.tokens.input') as tin,
+      json_extract(data, '$.tokens.output') as tout,
+      json_extract(data, '$.tokens.cache.read') as tcr,
+      json_extract(data, '$.tokens.cache.write') as tcw,
+      json_extract(data, '$.time.created') as tStart,
+      json_extract(data, '$.time.completed') as tEnd
+    FROM message
+    WHERE data LIKE '%"tokens":%'
+    ORDER BY time_created
+  `);
+  
+  return rows.map(row => ({
+    ts: row.ts,
+    modelId: row.modelId,
+    in: parseInt(row.tin) || 0,
+    out: parseInt(row.tout) || 0,
+    cr: parseInt(row.tcr) || 0,
+    cw: parseInt(row.tcw) || 0,
+    tStart: row.tStart ? parseFloat(row.tStart) : null,
+    tEnd: row.tEnd ? parseFloat(row.tEnd) : null
+  }));
+}
+
 module.exports = {
   normalizeModelName,
   getShortModelName,
@@ -537,5 +565,6 @@ module.exports = {
   getModelsTPSStats,
   getHourlyTPSStats,
   getDailyTPSByModel,
-  getModelsList
+  getModelsList,
+  getRawMessages
 };

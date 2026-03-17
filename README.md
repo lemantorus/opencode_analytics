@@ -1,5 +1,8 @@
 # OpenCode Analytics
 
+[![npm version](https://img.shields.io/npm/v/@lemantorus/opencode-analytics.svg)](https://www.npmjs.com/package/@lemantorus/opencode-analytics)
+[![npm downloads](https://img.shields.io/npm/dm/@lemantorus/opencode-analytics.svg)](https://www.npmjs.com/package/@lemantorus/opencode-analytics)
+
 > ⚠️ **Unofficial** - This is a community-built dashboard, not affiliated with or endorsed by [Anomaly](https://anoma.ly) (the creators of OpenCode).
 
 A beautiful, real-time analytics dashboard for OpenCode that visualizes your AI coding usage, token consumption, costs, and model performance.

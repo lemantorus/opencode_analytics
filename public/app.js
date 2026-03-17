@@ -120,7 +120,9 @@ async function fetchAPI(endpoint) {
 }
 
 async function loadOverview() {
-  const data = await fetchAPI('/stats/overview');
+  const days = useCustomRange ? null : (currentRange === 'all' ? null : currentRange);
+  const queryParam = days ? `?days=${days}` : '';
+  const data = await fetchAPI(`/stats/overview${queryParam}`);
   
   document.getElementById('totalMessages').textContent = formatNumber(data.messageCount);
   document.getElementById('totalInput').textContent = formatNumber(data.totalInput);
@@ -547,37 +549,97 @@ async function loadWeeklyChart() {
 }
 
 async function loadTPSModelsList() {
-  const models = await fetchAPI('/models-list');
   const modelsWithStats = await fetchAPI('/stats/models?days=30');
   
   modelsWithStats.sort((a, b) => (b.outputTokens || 0) - (a.outputTokens || 0));
   tpsModelsList = modelsWithStats.slice(0, 10).map(m => m.baseModel);
   selectedTPSModels = tpsModelsList.slice(0, 5);
   
-  const select = document.getElementById('tpsModelSelect');
-  select.innerHTML = '';
+  const dropdown = document.getElementById('tpsModelDropdown');
+  const optionsContainer = dropdown.querySelector('.dropdown-options');
+  optionsContainer.innerHTML = '';
   
   for (const model of tpsModelsList) {
-    const option = document.createElement('option');
-    option.value = model;
-    option.textContent = model;
-    option.selected = selectedTPSModels.includes(model);
-    select.appendChild(option);
+    const label = document.createElement('label');
+    label.className = 'dropdown-option' + (selectedTPSModels.includes(model) ? ' selected' : '');
+    label.innerHTML = `
+      <input type="checkbox" value="${model}" ${selectedTPSModels.includes(model) ? 'checked' : ''}>
+      ${model}
+    `;
+    optionsContainer.appendChild(label);
+  }
+  
+  updateDropdownButton();
+}
+
+function updateDropdownButton() {
+  const dropdown = document.getElementById('tpsModelDropdown');
+  const btn = dropdown.querySelector('.dropdown-toggle');
+  const checked = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+  
+  if (checked.length === 0) {
+    btn.textContent = 'Select models ▼';
+  } else if (checked.length <= 2) {
+    const labels = Array.from(checked).map(c => c.value);
+    btn.textContent = labels.join(', ') + ' ▼';
+  } else {
+    btn.textContent = `${checked.length} models selected ▼`;
   }
 }
 
-async function loadTPSChart() {
-  const select = document.getElementById('tpsModelSelect');
-  selectedTPSModels = Array.from(select.selectedOptions).map(o => o.value);
+function initTPSDropdown() {
+  const dropdown = document.getElementById('tpsModelDropdown');
+  const btn = dropdown.querySelector('.dropdown-toggle');
   
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+  
+  dropdown.querySelector('.dropdown-options').addEventListener('change', (e) => {
+    if (e.target.type === 'checkbox') {
+      const label = e.target.closest('.dropdown-option');
+      if (e.target.checked) {
+        label.classList.add('selected');
+      } else {
+        label.classList.remove('selected');
+      }
+      updateDropdownButton();
+    }
+  });
+  
+  document.addEventListener('click', () => {
+    dropdown.classList.remove('open');
+  });
+  
+  dropdown.querySelector('.dropdown-menu').addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  
+  setTimeout(() => {
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button';
+    applyBtn.className = 'btn btn-sm btn-primary';
+    applyBtn.textContent = 'Apply';
+    applyBtn.style.marginTop = '0.5rem';
+    applyBtn.style.width = '100%';
+    applyBtn.addEventListener('click', async () => {
+      dropdown.classList.remove('open');
+      const checked = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+      selectedTPSModels = Array.from(checked).map(c => c.value);
+      await loadTPSChart();
+    });
+    dropdown.querySelector('.dropdown-menu').appendChild(applyBtn);
+  }, 0);
+}
+
+async function loadTPSChart() {
   if (selectedTPSModels.length === 0) {
     selectedTPSModels = tpsModelsList.slice(0, 5);
-    for (const option of select.options) {
-      option.selected = selectedTPSModels.includes(option.value);
-    }
   }
   
-  const data = await fetchAPI(`/stats/daily-tps-by-model?days=30&models=${selectedTPSModels.join(',')}`);
+  const modelsParam = selectedTPSModels.join(',');
+  const data = await fetchAPI('/stats/daily-tps-by-model?days=30&models=' + modelsParam);
   
   if (charts.tps) charts.tps.destroy();
   
@@ -585,7 +647,7 @@ async function loadTPSChart() {
   
   const datasets = data.models.map((model, index) => ({
     label: model.baseModel,
-    data: model.data,
+    data: model.data.map(d => d?.tps ?? null),
     borderColor: getColor(index),
     backgroundColor: getColor(index) + '20',
     fill: true,
@@ -598,7 +660,8 @@ async function loadTPSChart() {
     pointHoverBackgroundColor: getColor(index),
     pointHoverBorderColor: '#00ff88',
     pointHoverBorderWidth: 2,
-    borderWidth: 2
+    borderWidth: 2,
+    extraData: model.data
   }));
   
   charts.tps = new Chart(ctx, {
@@ -620,7 +683,22 @@ async function loadTPSChart() {
           mode: 'index',
           intersect: false,
           callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.raw?.toFixed(2) || '-'} tok/s`
+            title: () => '',
+            beforeBody: (items) => {
+              if (!items.length) return [];
+              return [items[0].label];
+            },
+            label: (ctx) => {
+              const extra = ctx.dataset.extraData[ctx.dataIndex];
+              const tps = extra?.tps?.toFixed(2) || '-';
+              const input = extra?.inputTokens ? formatNumber(extra.inputTokens) : '0';
+              const output = extra?.outputTokens ? formatNumber(extra.outputTokens) : '0';
+              return [
+                ctx.dataset.label,
+                `  ├─ TPS: ${tps} tok/s`,
+                `  └─ In: ${input} | Out: ${output}`
+              ];
+            }
           }
         }
       },
@@ -723,6 +801,7 @@ async function loadAll() {
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await loadAll();
+    initTPSDropdown();
     document.getElementById('loading').classList.add('hidden');
   } catch (err) {
     console.error('Failed to load:', err);
@@ -792,10 +871,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.querySelectorAll('#mainTimeFilter .btn[data-range]').forEach(b => b.classList.remove('active'));
       await loadAll();
     }
-  });
-  
-  document.getElementById('tpsModelSelect').addEventListener('change', async function() {
-    await loadTPSChart();
   });
   
   const today = new Date().toISOString().split('T')[0];

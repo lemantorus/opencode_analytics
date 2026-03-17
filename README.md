@@ -1,5 +1,7 @@
 # OpenCode Analytics
 
+> ⚠️ **Unofficial** - This is a community-built dashboard, not affiliated with or endorsed by [Anomaly](https://anoma.ly) (the creators of OpenCode).
+
 A beautiful, real-time analytics dashboard for OpenCode that visualizes your AI coding usage, token consumption, costs, and model performance.
 
 ![Dashboard Preview](https://via.placeholder.com/800x400/0a0a0a/00ff88?text=OpenCode+Analytics+Dashboard)
@@ -23,11 +25,16 @@ A beautiful, real-time analytics dashboard for OpenCode that visualizes your AI 
 - Visual bar chart comparison
 - Cost distribution doughnut chart
 
-### ⚡ Output TPS by Model
+### ⚡ Models Usage (TPS)
 - Real tokens-per-second calculation using actual response times
 - Select which models to compare (multi-select dropdown)
 - Shows average TPS per day over the last 30 days
-- Line chart visualization (not bar chart)
+- Tooltip shows tree format with TPS + input/output tokens:
+  ```
+  Model Name
+    ├─ TPS: 45.23 tok/s
+    └─ In: 12.5K | Out: 8.2K
+  ```
 
 **How TPS is calculated:**
 ```
@@ -184,6 +191,10 @@ opencode-analytics/
 ## License
 
 MIT License - feel free to use, modify, and distribute.
+
+## Author
+
+Built by [Lemantorus](https://github.com/lemantorus) - Not affiliated with [Anomaly](https://anoma.ly) or the official OpenCode project.
 
 ## Credits
 

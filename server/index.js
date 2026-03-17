@@ -278,12 +278,18 @@ function aggregateByTimeFrame(stats, timeKey, checkAsFree = true) {
 
 const app = express();
 app.use(express.json());
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/api/stats/overview', (req, res) => {
   const checkAsFree = req.query.checkAsFree !== 'false';
-  const overview = db.getOverview();
-  const modelsStats = db.getModelsStats();
+  const daysParam = req.query.days;
+  const days = daysParam !== undefined ? parseInt(daysParam) : null;
+  const overview = db.getOverview(days);
+  const modelsStats = days !== null && days > 0 ? db.getModelsStatsByDays(days) : db.getModelsStats();
   
   let totalCost = 0;
   for (const model of modelsStats) {
@@ -293,7 +299,8 @@ app.get('/api/stats/overview', (req, res) => {
   res.json({
     ...overview,
     totalCost,
-    modelCount: modelsStats.length
+    modelCount: modelsStats.length,
+    period: days ? `${days} days` : 'all'
   });
 });
 

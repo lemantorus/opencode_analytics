@@ -51,9 +51,9 @@ function findDbPath() {
   return detectDbPath();
 }
 
-function openBrowser(url) {
-  const { spawn: spawnOpen } = require('open');
-  spawnOpen(url);
+async function openBrowser(url) {
+  const open = (await import('open')).default;
+  open(url);
 }
 
 async function main() {
@@ -129,13 +129,13 @@ async function main() {
     process.exit(code);
   });
   
-  setTimeout(() => {
+  setTimeout(async () => {
     const url = `http://localhost:${port}`;
     console.log(`\nServer running at: ${url}`);
     
     if (shouldOpen) {
       console.log('Opening browser...');
-      openBrowser(url);
+      await openBrowser(url);
     }
   }, 1000);
 }

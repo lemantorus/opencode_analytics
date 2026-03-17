@@ -66,7 +66,9 @@ function isFreeModel(modelId) {
          modelId.includes('nemotron');
 }
 
-function getOverview() {
+function getOverview(days = null) {
+  const timeFilter = (days !== null && days > 0) ? `AND time_created >= ${Date.now() - (days * 24 * 60 * 60 * 1000)}` : '';
+  
   const rows = query(`
     SELECT 
       COUNT(*) as messageCount,
@@ -81,7 +83,7 @@ function getOverview() {
       MIN(time_created) as firstMessage,
       MAX(time_created) as lastMessage
     FROM message
-    WHERE data LIKE '%"tokens":%'
+    WHERE data LIKE '%"tokens":%' ${timeFilter}
   `);
   
   const row = rows[0] || {};
@@ -335,6 +337,7 @@ function getDailyTPSByModel(days = 30, modelFilter = null) {
       date(time_created / 1000, 'unixepoch') as date,
       json_extract(data, '$.modelID') as modelId,
       json_extract(data, '$.tokens.output') as outputTokens,
+      json_extract(data, '$.tokens.input') as inputTokens,
       json_extract(data, '$.time.created') as timeCreated,
       json_extract(data, '$.time.completed') as timeCompleted
     FROM message
@@ -366,11 +369,13 @@ function getDailyTPSByModel(days = 30, modelFilter = null) {
       modelDailyStats[modelKey] = {};
     }
     if (!modelDailyStats[modelKey][dateKey]) {
-      modelDailyStats[modelKey][dateKey] = { tpsSum: 0, count: 0 };
+      modelDailyStats[modelKey][dateKey] = { tpsSum: 0, count: 0, inputTokens: 0, outputTokens: 0 };
     }
     
     modelDailyStats[modelKey][dateKey].tpsSum += tps;
     modelDailyStats[modelKey][dateKey].count += 1;
+    modelDailyStats[modelKey][dateKey].inputTokens += row.inputTokens || 0;
+    modelDailyStats[modelKey][dateKey].outputTokens += row.outputTokens || 0;
   }
 
   const result = [];
@@ -388,7 +393,11 @@ function getDailyTPSByModel(days = 30, modelFilter = null) {
     const data = sortedDates.map(date => {
       const dayStats = dates[date];
       return dayStats && dayStats.count > 0 
-        ? dayStats.tpsSum / dayStats.count 
+        ? { 
+            tps: dayStats.tpsSum / dayStats.count,
+            inputTokens: dayStats.inputTokens,
+            outputTokens: dayStats.outputTokens
+          }
         : null;
     });
     
@@ -399,8 +408,8 @@ function getDailyTPSByModel(days = 30, modelFilter = null) {
   }
 
   result.sort((a, b) => {
-    const totalA = a.data.reduce((s, v) => s + (v || 0), 0);
-    const totalB = b.data.reduce((s, v) => s + (v || 0), 0);
+    const totalA = a.data.reduce((s, v) => s + (v?.tps || 0), 0);
+    const totalB = b.data.reduce((s, v) => s + (v?.tps || 0), 0);
     return totalB - totalA;
   });
 

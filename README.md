@@ -7,7 +7,14 @@
 
 A beautiful, real-time analytics dashboard for OpenCode that visualizes your AI coding usage, token consumption, costs, and model performance.
 
-![Dashboard Preview](https://via.placeholder.com/800x400/0a0a0a/00ff88?text=OpenCode+Analytics+Dashboard)
+![Dashboard Preview](./screenshots/desktop.png)
+
+<details>
+<summary>📱 Mobile View</summary>
+
+![Mobile Preview](./screenshots/mobile.png)
+
+</details>
 
 ## Features
 

@@ -270,8 +270,12 @@ h1 {
 .time-filter-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 1rem;
+  margin-top: 1.5rem;
   margin-bottom: 1.25rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -686,6 +690,11 @@ tbody tr:hover {
   .chart-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .time-filter-row {
+    flex-direction: column;
+    align-items: center;
   }
 
   .date-range-picker {

@@ -54,7 +54,7 @@ const Aggregator = (function() {
   function calcCost(msg, pricing, checkAsFree) {
     const p = getPricing(msg.modelId, pricing, checkAsFree);
     const inputCost = (msg.in || 0) * (p.input || 0);
-    const outputCost = (msg.out || 0) * (p.output || 0);
+    const outputCost = ((msg.out || 0) + (msg.rs || 0)) * (p.output || 0);
     const cacheCost = (msg.cr || 0) * (p.cacheRead || p.input || 0);
     const cacheWriteCost = (msg.cw || 0) * (p.input || 0);
     return inputCost + outputCost + cacheCost + cacheWriteCost;
@@ -86,7 +86,7 @@ const Aggregator = (function() {
       }
       
       groups[key].inputTokens += msg.in || 0;
-      groups[key].outputTokens += msg.out || 0;
+      groups[key].outputTokens += (msg.out || 0) + (msg.rs || 0);
       groups[key].cacheRead += msg.cr || 0;
       groups[key].cacheWrite += msg.cw || 0;
       groups[key].cost += calcCost(msg, pricing, checkAsFree);
@@ -117,7 +117,7 @@ const Aggregator = (function() {
       
       groups[hour].messageCount += 1;
       groups[hour].inputTokens += msg.in || 0;
-      groups[hour].outputTokens += msg.out || 0;
+      groups[hour].outputTokens += (msg.out || 0) + (msg.rs || 0);
       groups[hour].cacheRead += msg.cr || 0;
       groups[hour].cacheWrite += msg.cw || 0;
     }
@@ -152,7 +152,7 @@ const Aggregator = (function() {
       
       groups[base].messageCount += 1;
       groups[base].inputTokens += msg.in || 0;
-      groups[base].outputTokens += msg.out || 0;
+      groups[base].outputTokens += (msg.out || 0) + (msg.rs || 0);
       groups[base].cacheRead += msg.cr || 0;
       groups[base].cacheWrite += msg.cw || 0;
       groups[base].cost += calcCost(msg, pricing, checkAsFree);
@@ -174,7 +174,7 @@ const Aggregator = (function() {
     for (const msg of messages) {
       messageCount += 1;
       totalInput += msg.in || 0;
-      totalOutput += msg.out || 0;
+      totalOutput += (msg.out || 0) + (msg.rs || 0);
       totalCacheRead += msg.cr || 0;
       totalCacheWrite += msg.cw || 0;
       totalCost += calcCost(msg, pricing, checkAsFree);
@@ -268,7 +268,7 @@ const Aggregator = (function() {
       
       if (!modelData[base]) modelData[base] = {};
       if (!modelData[base][date]) {
-        modelData[base][date] = { tpsSum: 0, count: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0 };
+        modelData[base][date] = { tpsSum: 0, count: 0, inputTokens: 0, outputTokens: 0, reasoningTokens: 0, cacheRead: 0, cacheWrite: 0 };
       }
       
       modelData[base][date].tpsSum += tps;
@@ -276,6 +276,8 @@ const Aggregator = (function() {
       modelData[base][date].inputTokens += msg.in || 0;
       modelData[base][date].outputTokens += msg.out || 0;
       modelData[base][date].reasoningTokens += msg.rs || 0;
+      modelData[base][date].cacheRead += msg.cr || 0;
+      modelData[base][date].cacheWrite += msg.cw || 0;
     }
     
     const sortedDates = Array.from(allDates).sort();
@@ -287,7 +289,7 @@ const Aggregator = (function() {
       const data = sortedDates.map(date => {
         const d = dates[date];
         return d && d.count > 0 
-          ? { tps: d.tpsSum / d.count, inputTokens: d.inputTokens, outputTokens: d.outputTokens, reasoningTokens: d.reasoningTokens }
+          ? { tps: d.tpsSum / d.count, inputTokens: d.inputTokens, outputTokens: d.outputTokens, reasoningTokens: d.reasoningTokens, cacheRead: d.cacheRead, cacheWrite: d.cacheWrite }
           : null;
       });
       

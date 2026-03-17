@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenCode Analytics</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
@@ -62,6 +62,13 @@
         <div class="card-content">
           <div class="card-label">Cache Read</div>
           <div class="card-value" id="totalCacheRead">-</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💾</div>
+        <div class="card-content">
+          <div class="card-label">Cache Write</div>
+          <div class="card-value" id="totalCacheWrite">-</div>
         </div>
       </div>
       <div class="card highlight">
@@ -183,7 +190,7 @@
     <span>Loading analytics...</span>
   </div>
 
-  <script src="aggregator.js?v=1"></script>
-  <script src="app.js?v=11"></script>
+  <script src="aggregator.js?v=3"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

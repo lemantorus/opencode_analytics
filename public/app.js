@@ -163,6 +163,7 @@ function renderOverview() {
   document.getElementById('totalInput').textContent = formatNumber(overview.totalInput);
   document.getElementById('totalOutput').textContent = formatNumber(overview.totalOutput);
   document.getElementById('totalCacheRead').textContent = formatNumber(overview.totalCacheRead);
+  document.getElementById('totalCacheWrite').textContent = formatNumber(overview.totalCacheWrite);
   document.getElementById('totalCost').textContent = formatCurrency(overview.totalCost);
 }
 
@@ -423,6 +424,22 @@ function renderDailyChart(showCost = false) {
             pointHoverBorderColor: '#00ff88',
             pointHoverBorderWidth: 2,
             borderWidth: 2
+          },
+          {
+            label: 'Cache Write',
+            data: data.map(d => d.cacheWrite),
+            borderColor: getColor(3),
+            backgroundColor: 'transparent',
+            tension: 0.3,
+            pointRadius: 2,
+            pointBackgroundColor: getColor(3),
+            pointBorderColor: '#0a0a0a',
+            pointBorderWidth: 1,
+            pointHoverRadius: 6,
+            pointHoverBackgroundColor: getColor(3),
+            pointHoverBorderColor: '#00ff88',
+            pointHoverBorderWidth: 2,
+            borderWidth: 2
           }
         ]
       },
@@ -451,6 +468,12 @@ function renderDailyChart(showCost = false) {
             callbacks: {
               label: function(context) {
                 return `${context.dataset.label}: ${formatNumber(context.raw)}`;
+              },
+              footer: function(tooltipItems) {
+                const idx = tooltipItems[0].dataIndex;
+                const d = data[idx];
+                const total = (d.inputTokens || 0) + (d.outputTokens || 0) + (d.cacheRead || 0) + (d.cacheWrite || 0);
+                return `Total: ${formatNumber(total)}`;
               }
             }
           }
@@ -768,10 +791,13 @@ function renderTPSChart() {
               const input = extra?.inputTokens ? formatNumber(extra.inputTokens) : '0';
               const output = extra?.outputTokens ? formatNumber(extra.outputTokens) : '0';
               const reasoning = extra?.reasoningTokens ? formatNumber(extra.reasoningTokens) : '0';
+              const cacheRead = extra?.cacheRead ? formatNumber(extra.cacheRead) : '0';
+              const cacheWrite = extra?.cacheWrite ? formatNumber(extra.cacheWrite) : '0';
               return [
                 ctx.dataset.label,
                 `  ├─ TPS: ${tps} tok/s`,
-                `  └─ In: ${input} | Out: ${output} | Think: ${reasoning}`
+                `  ├─ In: ${input} | Out: ${output} | Think: ${reasoning}`,
+                `  └─ Cache R: ${cacheRead} | W: ${cacheWrite}`
               ];
             }
           }

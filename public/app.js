@@ -473,7 +473,10 @@ function renderDailyChart(showCost = false) {
                 const idx = tooltipItems[0].dataIndex;
                 const d = data[idx];
                 const total = (d.inputTokens || 0) + (d.outputTokens || 0) + (d.cacheRead || 0) + (d.cacheWrite || 0);
-                return `Total: ${formatNumber(total)}`;
+                return [
+                  `Messages: ${formatNumber(d.messageCount || 0)}`,
+                  `Total: ${formatNumber(total)}`
+                ];
               }
             }
           }

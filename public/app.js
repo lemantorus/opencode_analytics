@@ -18,7 +18,7 @@ let currentHourlyType = 'messages';
 
 let autoRefreshInterval = null;
 let autoRefreshSeconds = 0;
-let tpsSortMode = 'output';
+
 
 function formatNumber(num) {
   if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
@@ -68,7 +68,9 @@ const tooltipDefaults = {
   usePointStyle: true,
   animation: { duration: 150 },
   caretSize: 6,
-  caretPadding: 8
+  caretPadding: 8,
+  position: 'nearest',
+  clamp: true
 };
 
 const chartDefaults = {
@@ -118,6 +120,12 @@ const chartDefaults = {
   },
   animation: {
     duration: 300
+  },
+  layout: {
+    padding: {
+      top: 4,
+      bottom: 4
+    }
   }
 };
 
@@ -598,22 +606,7 @@ function updateTPSModelsList() {
     tpsMap[m.baseModel] = m.outputTPS || 0;
   }
   
-  modelsData.sort((a, b) => {
-    if (tpsSortMode === 'tps') {
-      return (tpsMap[b.baseModel] || 0) - (tpsMap[a.baseModel] || 0);
-    }
-    const aVal = tpsSortMode === 'output' 
-      ? (a.outputTokens || 0) 
-      : tpsSortMode === 'input' 
-        ? (a.inputTokens || 0) 
-        : ((a.inputTokens || 0) + (a.outputTokens || 0));
-    const bVal = tpsSortMode === 'output' 
-      ? (b.outputTokens || 0) 
-      : tpsSortMode === 'input' 
-        ? (b.inputTokens || 0) 
-        : ((b.inputTokens || 0) + (b.outputTokens || 0));
-    return bVal - aVal;
-  });
+  modelsData.sort((a, b) => (b.outputTokens || 0) - (a.outputTokens || 0));
   
   const modelsInfo = {};
   for (const m of modelsData) {
@@ -637,18 +630,8 @@ function updateTPSModelsList() {
   
   for (const model of tpsModelsList) {
     const info = modelsInfo[model];
-    let sortVal, sortTooltip;
-    if (tpsSortMode === 'tps') {
-      sortVal = info.tps.toFixed(1) + ' tok/s';
-      sortTooltip = `TPS: ${sortVal}`;
-    } else {
-      sortVal = tpsSortMode === 'output' 
-        ? formatNumber(info.output) 
-        : tpsSortMode === 'input' 
-          ? formatNumber(info.input) 
-          : formatNumber(info.total);
-      sortTooltip = `In: ${formatNumber(info.input)} | Out: ${formatNumber(info.output)}`;
-    }
+    const sortVal = formatNumber(info.output);
+    const sortTooltip = `In: ${formatNumber(info.input)} | Out: ${formatNumber(info.output)}`;
     
     const label = document.createElement('label');
     label.className = 'dropdown-option' + (selectedTPSModels.includes(model) ? ' selected' : '');
@@ -962,12 +945,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
-  document.getElementById('tpsSortSelect').addEventListener('change', function() {
-    tpsSortMode = this.value;
-    updateTPSModelsList();
-    renderTPSChart();
-  });
-  
+
   document.getElementById('refreshPricingBtn').addEventListener('click', async function() {
     this.textContent = '...';
     await fetch(`${API_BASE}/pricing/reset`, { method: 'POST' });
